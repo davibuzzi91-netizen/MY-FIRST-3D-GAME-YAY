@@ -1,0 +1,48 @@
+name: Gerar APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Descompactar projeto
+        run: unzip -o TechTycoon-source.zip -d projeto
+
+      - name: Baixar a biblioteca 3D (three.js r128) para dentro do app
+        run: |
+          curl -fsSL --retry 3 -o projeto/app/src/main/assets/three.min.js https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js
+          test "$(wc -c < projeto/app/src/main/assets/three.min.js)" -gt 100000
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Instalar plataforma e build-tools do Android
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          yes | "$SDKM" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Gerar APK de debug
+        working-directory: projeto
+        run: gradle :app:assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TechTycoon-APK
+          path: projeto/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Onde baixar
+        run: echo "APK pronto. Baixe o artefato TechTycoon-APK no fim desta página." >> "$GITHUB_STEP_SUMMARY"
